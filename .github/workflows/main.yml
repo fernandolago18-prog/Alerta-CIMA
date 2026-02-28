@@ -1,0 +1,32 @@
+name: AEMPS Vigilance Cron Job
+
+on:
+  schedule:
+    # Ejecuta todos los dias a las 09:00 AM UTC
+    - cron: '0 9 * * *'
+  workflow_dispatch: # Permite ejecutar el script de forma manual desde Github Actions
+
+jobs:
+  run-alert-scanner:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run AEMPS Vigilance Engine
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node src/cron/mainRunner.js
