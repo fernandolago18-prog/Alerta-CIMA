@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { updateIncidenciaAction } from "@/app/actions";
+import { updateIncidenciaAction } from "@/app/(dashboard)/actions";
 import { Download } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";

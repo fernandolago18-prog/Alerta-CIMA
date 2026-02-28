@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, LayoutDashboard, Settings, AlertTriangle, Package2 } from "lucide-react";
+import { Activity, LayoutDashboard, Settings, AlertTriangle, Package2, LogOut } from "lucide-react";
+import { logoutAction } from "@/app/login/actions";
 
 export function Sidebar() {
     const pathname = usePathname();
@@ -29,8 +30,8 @@ export function Sidebar() {
                             key={route.href}
                             href={route.href}
                             className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 ${isActive
-                                    ? "bg-primary/10 text-primary border border-primary/20"
-                                    : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                                ? "bg-primary/10 text-primary border border-primary/20"
+                                : "text-muted-foreground hover:bg-white/5 hover:text-white"
                                 }`}
                         >
                             <Icon className={`mr-3 h-5 w-5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
@@ -39,11 +40,17 @@ export function Sidebar() {
                     );
                 })}
             </nav>
-            <div className="p-4 border-t border-white/5">
+            <div className="p-4 border-t border-white/5 space-y-4">
                 <div className="bg-primary/10 p-4 rounded-xl border border-primary/20 text-sm">
                     <p className="font-semibold text-primary mb-1">Sistema Activo</p>
                     <p className="text-muted-foreground text-xs">Monitoreo de AEMPS en tiempo real.</p>
                 </div>
+                <form action={logoutAction}>
+                    <button type="submit" className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 rounded-lg transition-colors border border-destructive/20 hover:border-destructive/40 duration-200">
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Cerrar Sesión
+                    </button>
+                </form>
             </div>
         </aside>
     );

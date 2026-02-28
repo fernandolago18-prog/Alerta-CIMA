@@ -3,12 +3,19 @@
 import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
 
+import { verifySession } from "@/lib/session";
+
 export async function updateIncidenciaAction(
     id: string,
     estado: "Pendiente" | "Resuelta" | "Falsa Alarma",
     accion_tomada: string,
     comunicados: string[] = []
 ) {
+    const isAuth = await verifySession();
+    if (!isAuth) {
+        throw new Error("No autorizado");
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updatePayload: any = {
         estado,

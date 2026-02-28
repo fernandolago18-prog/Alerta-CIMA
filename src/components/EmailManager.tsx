@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveEmailsAction } from "@/app/configuracion/actions";
+import { saveEmailsAction } from "@/app/(dashboard)/configuracion/actions";
 import { Plus, Trash2, Mail, Save } from "lucide-react";
 
 export function EmailManager({ initialEmails }: { initialEmails: string[] }) {
