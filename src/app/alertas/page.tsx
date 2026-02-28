@@ -55,11 +55,11 @@ export default async function AlertasPage() {
                                     </td>
                                     <td className="px-6 py-4">
                                         {alerta.cns_afectados && alerta.cns_afectados.length > 0 ? (
-                                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                            <span className="inline-flex whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
                                                 {alerta.cns_afectados.length} CNs Detectados
                                             </span>
                                         ) : (
-                                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">
+                                            <span className="inline-flex whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">
                                                 Sin hallazgos
                                             </span>
                                         )}

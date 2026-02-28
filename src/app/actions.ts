@@ -6,12 +6,14 @@ import { revalidatePath } from "next/cache";
 export async function updateIncidenciaAction(
     id: string,
     estado: "Pendiente" | "Resuelta" | "Falsa Alarma",
-    accion_tomada: string
+    accion_tomada: string,
+    comunicados: string[] = []
 ) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updatePayload: any = {
         estado,
         accion_tomada,
+        comunicados,
     };
 
     if (estado === "Resuelta" || estado === "Falsa Alarma") {

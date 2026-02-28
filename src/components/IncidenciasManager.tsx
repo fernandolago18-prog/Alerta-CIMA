@@ -11,10 +11,26 @@ export function IncidenciasManager({ initialIncidencias }: { initialIncidencias:
     const [incidencias, setIncidencias] = useState(initialIncidencias);
     const [isPending, startTransition] = useTransition();
 
+    // Filtros de fecha
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
+
     // Sync if initialIncidencias prop changes from Server Action revalidation
     useEffect(() => {
         setIncidencias(initialIncidencias);
     }, [initialIncidencias]);
+
+    const filteredIncidencias = incidencias.filter(inc => {
+        if (!startDate && !endDate) return true;
+        const incDate = new Date(inc.fecha_deteccion);
+
+        const start = startDate ? new Date(startDate) : new Date("2000-01-01");
+        const end = endDate ? new Date(endDate) : new Date("2100-01-01");
+        // Expand end date to include the whole day
+        end.setHours(23, 59, 59, 999);
+
+        return incDate >= start && incDate <= end;
+    });
 
     const handleExportPDF = async () => {
         const element = document.getElementById("dashboard-export-area");
@@ -40,13 +56,14 @@ export function IncidenciasManager({ initialIncidencias }: { initialIncidencias:
         }
     };
 
-    const handleUpdate = (id: string, field: "estado" | "accion_tomada", value: string) => {
+    const handleUpdate = (id: string, field: "estado" | "accion_tomada" | "comunicados", value: any) => {
         const current = incidencias.find((i) => i.id === id);
         if (!current) return;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const newEstado = field === "estado" ? (value as any) : current.estado;
         const newAccion = field === "accion_tomada" ? value : (current.accion_tomada || "");
+        const newComunicados = field === "comunicados" ? value : (current.comunicados || []);
 
         // Actualización optimista del UI
         setIncidencias((prev) =>
@@ -55,7 +72,7 @@ export function IncidenciasManager({ initialIncidencias }: { initialIncidencias:
 
         // Call server action to update database (runs in background)
         startTransition(() => {
-            updateIncidenciaAction(id, newEstado, newAccion).catch((err) => {
+            updateIncidenciaAction(id, newEstado, newAccion, newComunicados).catch((err) => {
                 console.error("Failed to update status on server:", err);
                 // Fallback: reload state from props if it fails
                 setIncidencias(initialIncidencias);
@@ -82,30 +99,68 @@ export function IncidenciasManager({ initialIncidencias }: { initialIncidencias:
                 </button>
             </div>
 
-            {incidencias && incidencias.length > 0 ? (
+            {/* Filtros de Fecha */}
+            <div data-html2canvas-ignore className="flex flex-col sm:flex-row gap-4 mb-6 pt-4 border-t border-white/5">
+                <div className="flex flex-col">
+                    <label className="text-xs text-muted-foreground mb-1">Fecha Inicio</label>
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="bg-black/40 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:border-primary transition-colors color-scheme-dark"
+                    />
+                </div>
+                <div className="flex flex-col">
+                    <label className="text-xs text-muted-foreground mb-1">Fecha Fin</label>
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="bg-black/40 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:border-primary transition-colors color-scheme-dark"
+                    />
+                </div>
+                {(startDate || endDate) && (
+                    <div className="flex items-end">
+                        <button
+                            onClick={() => { setStartDate(""); setEndDate(""); }}
+                            className="text-xs text-primary hover:text-primary/80 mb-2 underline"
+                        >
+                            Limpiar Filtros
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {filteredIncidencias && filteredIncidencias.length > 0 ? (
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="text-xs text-muted-foreground uppercase bg-white/5 border-b border-white/10">
                             <tr>
                                 <th scope="col" className="px-4 py-3 font-medium">CN Afectado</th>
                                 <th scope="col" className="px-4 py-3 font-medium">Lote</th>
-                                <th scope="col" className="px-4 py-3 font-medium w-1/3">Alerta Detectada</th>
+                                <th scope="col" className="px-4 py-3 font-medium w-1/4">Alerta Detectada</th>
                                 <th scope="col" className="px-4 py-3 font-medium">Estado</th>
                                 <th scope="col" className="px-4 py-3 font-medium">Acción Tomada</th>
+                                <th scope="col" className="px-4 py-3 font-medium">Comunicados</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {incidencias.map((incidencia) => (
+                            {filteredIncidencias.map((incidencia) => (
                                 <tr key={incidencia.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
                                     <td className="px-4 py-4 font-bold text-white whitespace-nowrap">{incidencia.cn}</td>
                                     <td className="px-4 py-4 font-mono text-muted-foreground">{incidencia.lote_afectado}</td>
                                     <td className="px-4 py-4 text-xs font-medium text-zinc-300">
-                                        <span
-                                            className="line-clamp-2"
-                                            title={incidencia.alertas_historico?.titulo || "Alerta sin título"}
-                                        >
-                                            {incidencia.alertas_historico?.titulo || "Alerta Desconocida"}
-                                        </span>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] text-muted-foreground mb-0.5">
+                                                {new Date(incidencia.fecha_deteccion).toLocaleDateString("es-ES")}
+                                            </span>
+                                            <span
+                                                className="line-clamp-2"
+                                                title={incidencia.alertas_historico?.titulo || "Alerta sin título"}
+                                            >
+                                                {incidencia.alertas_historico?.titulo || "Alerta Desconocida"}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td className="px-4 py-4">
                                         <select
@@ -124,20 +179,41 @@ export function IncidenciasManager({ initialIncidencias }: { initialIncidencias:
                                         </select>
                                     </td>
                                     <td className="px-4 py-4">
-                                        <input
-                                            type="text"
-                                            defaultValue={incidencia.accion_tomada || ""}
-                                            onBlur={(e) => {
-                                                if (e.target.value !== (incidencia.accion_tomada || "")) {
-                                                    handleUpdate(incidencia.id, "accion_tomada", e.target.value);
-                                                }
-                                            }}
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter") e.currentTarget.blur()
-                                            }}
-                                            placeholder="Ej: Cuarentena 20uds"
-                                            className="w-full bg-black/40 border-b border-white/5 px-2 py-1 text-sm text-white focus:outline-none focus:border-primary placeholder:text-zinc-600 transition-colors rounded-t-sm"
-                                        />
+                                        <select
+                                            value={incidencia.accion_tomada || ""}
+                                            onChange={(e) => handleUpdate(incidencia.id, "accion_tomada", e.target.value)}
+                                            className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
+                                        >
+                                            <option value="" disabled className="bg-zinc-900 text-zinc-500">Seleccione acción...</option>
+                                            <option value="Ninguna" className="bg-zinc-900 text-white">Ninguna</option>
+                                            <option value="Retirada y Devolución al Laboratorio" className="bg-zinc-900 text-white">Retirada y Devolución al Laboratorio</option>
+                                            <option value="Retirada y Destrucción in situ" className="bg-zinc-900 text-white">Retirada y Destrucción in situ</option>
+                                        </select>
+                                    </td>
+                                    <td className="px-4 py-4">
+                                        <div className="flex flex-col gap-2">
+                                            {[
+                                                "Notificación a Jefes de Servicio",
+                                                "Aviso a Enfermería de referencia",
+                                                "Contacto directo con el Facultativo prescriptor"
+                                            ].map((opt) => (
+                                                <label key={opt} className="flex items-start space-x-2 text-[10px] sm:text-xs text-zinc-300 cursor-pointer group">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={(incidencia.comunicados || []).includes(opt)}
+                                                        onChange={(e) => {
+                                                            const current = incidencia.comunicados || [];
+                                                            const newValues = e.target.checked
+                                                                ? [...current, opt]
+                                                                : current.filter((c: string) => c !== opt);
+                                                            handleUpdate(incidencia.id, "comunicados", newValues);
+                                                        }}
+                                                        className="mt-0.5 rounded border-white/20 bg-black/40 text-primary focus:ring-primary/50 cursor-pointer form-checkbox transition-colors group-hover:border-primary"
+                                                    />
+                                                    <span className="leading-tight group-hover:text-white transition-colors">{opt}</span>
+                                                </label>
+                                            ))}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
