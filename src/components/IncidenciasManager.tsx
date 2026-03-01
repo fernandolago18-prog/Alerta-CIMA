@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { updateIncidenciaAction } from "@/app/(dashboard)/actions";
 import { Download } from "lucide-react";
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function IncidenciasManager({ initialIncidencias }: { initialIncidencias: any[] }) {
@@ -37,12 +37,11 @@ export function IncidenciasManager({ initialIncidencias }: { initialIncidencias:
         if (!element) return;
 
         try {
-            const canvas = await html2canvas(element, {
-                scale: 2,
+            const imgData = await toPng(element, {
+                pixelRatio: 2,
                 backgroundColor: '#09090b',
-                ignoreElements: (el) => el.id === "ignore-pdf-export" || el.tagName === "BUTTON"
+                filter: (node) => node.id !== "ignore-pdf-export" && node.tagName !== "BUTTON"
             });
-            const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('l', 'pt', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const imgProps = pdf.getImageProperties(imgData);

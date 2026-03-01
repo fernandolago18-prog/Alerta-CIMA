@@ -54,34 +54,50 @@ export async function runScraperCron() {
 
         console.log(`🚨 Se han detectado ${nuevasAlertas.length} alertas nuevas. Procesando...`);
 
-        // 3. Iterar por cada una y extraer los datos estructurados con Gemini
-        for (const alerta of nuevasAlertas) {
+        // 3. Iterar por cada una de manera cronológica (desde la más antigua a la más nueva)
+        // para que si el proceso falla, el puntero se quede en la última que sí se procesó bien.
+        const chronAlerts = nuevasAlertas.reverse();
+
+        for (const alerta of chronAlerts) {
             console.log(`Procesando con IA: ${alerta.title}`);
-            const affectedItems = await extractBatchesWithGemini(alerta.fullText || alerta.briefDescription);
+            const textToProcess = (alerta.fullText || alerta.briefDescription).substring(0, 3000);
+            const affectedItems = await extractBatchesWithGemini(textToProcess);
 
             console.log(`Gemini ha detectado ${affectedItems.length} lotes defectuosos:`, affectedItems);
+            console.log('Estructura:', JSON.stringify(affectedItems));
+
+            // Pausa para evitar Rate Limit de Gemini (429)
+            await new Promise(r => setTimeout(r, 2500));
 
             const validItems = Array.isArray(affectedItems) ? affectedItems : [];
 
             // Guardar en el histórico (opcional para trazabilidad)
-            await supabase.from('alertas_historico').upsert({
+            const { error: histError } = await supabase.from('alertas_historico').upsert({
                 alerta_id: alerta.alertaId,
                 titulo: alerta.title,
                 cns_afectados: validItems.map(i => i.cn).filter(Boolean),
                 lotes_afectados: validItems.map(i => i.lote).filter(Boolean),
                 raw_texto: alerta.link
-            });
+            }, { onConflict: 'alerta_id' });
+
+            if (histError) {
+                console.error("Error guardando progreso en histórico de alertas:", histError);
+            }
 
             // 4. Cruzar con el inventario del hospital
             if (validItems.length > 0) {
                 for (const item of validItems) {
                     if (!item.cn || !item.lote) continue;
 
+                    const cnStr = String(item.cn).trim();
+                    const loteStr = String(item.lote).toUpperCase().replace(/[\s-]/g, '');
+                    console.log(`Checking DB for CN: ${cnStr}, Lote: ${loteStr}`);
+
                     const { data: inventarioMatch, error: inventarioError } = await supabase
                         .from('inventario_local')
                         .select('*')
-                        .eq('cn', item.cn)
-                        .eq('lote', item.lote);
+                        .eq('cn', cnStr)
+                        .eq('lote', loteStr);
 
                     if (inventarioError) {
                         console.error('Error buscando en inventario:', inventarioError);
@@ -92,6 +108,24 @@ export async function runScraperCron() {
                     if (inventarioMatch && inventarioMatch.length > 0) {
                         const loteEncontrado = inventarioMatch[0];
                         console.log(`⚠️ MATCH CRÍTICO DETECTADO: CN ${item.cn} Lote ${item.lote} (Stock: ${loteEncontrado.cantidad})`);
+
+                        // 5.1 Evitar duplicados: Comprobar si ya existe esta incidencia
+                        const { data: existingIncidence, error: existError } = await supabase
+                            .from('incidencias_hospital')
+                            .select('id')
+                            .eq('alerta_id', alerta.alertaId)
+                            .eq('cn', item.cn)
+                            .eq('lote_afectado', item.lote);
+
+                        if (existError) {
+                            console.error('Error verificando incidencia existente:', existError);
+                            continue;
+                        }
+
+                        if (existingIncidence && existingIncidence.length > 0) {
+                            console.log(`Incidencia duplicada evitada para CN ${item.cn} - Lote ${item.lote}. Ya estaba registrada y notificada.`);
+                            continue;
+                        }
 
                         // Guardarlo en la tabla de incidencias del dashboard
                         const { data: incidenciaInsertada, error: incidenciaError } = await supabase
@@ -123,21 +157,18 @@ export async function runScraperCron() {
             } else {
                 console.log(`La IA no encontró lotes aplicables en ${alerta.title}`);
             }
+
+            // 7. Actualizar la "Memoria" INMEDIATAMENTE después de procesar esta alerta con éxito
+            await supabase
+                .from('estado_aemps')
+                .update({
+                    ultima_alerta_id: alerta.alertaId,
+                    fecha_ultimo_escaneo: new Date().toISOString()
+                })
+                .eq('id', 1);
+
+            console.log(`💾 Memoria actualizada. Nueva marca: ${alerta.alertaId}`);
         }
-
-        // 7. Actualizar la "Memoria" con la alerta más reciente que acabamos de leer
-        // Asumiendo que AEMPS las lista en orden cronológico, la primera de nuevasAlertas es la más reciente.
-        const alertaMasReciente = nuevasAlertas[0];
-
-        await supabase
-            .from('estado_aemps')
-            .update({
-                ultima_alerta_id: alertaMasReciente.alertaId,
-                fecha_ultimo_escaneo: new Date().toISOString()
-            })
-            .eq('id', 1);
-
-        console.log(`💾 Memoria actualizada. Nueva marca: ${alertaMasReciente.alertaId}`);
 
     } catch (error) {
         console.error("❌ Error grave en la ejecución del CRON:", error);

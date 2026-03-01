@@ -1,6 +1,11 @@
 import nodemailer from 'nodemailer';
 
 export async function sendAlertEmail(incidenceDetails, recipientEmails = []) {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.error("❌ Error CRÍTICO: Las variables de entorno EMAIL_USER o EMAIL_PASS no están configuradas. El correo de alerta no se enviará.");
+        return null;
+    }
+
     const { tituloAemps, cn, lote, cantidad, enlace } = incidenceDetails;
 
     const toEmails = Array.isArray(recipientEmails) && recipientEmails.length > 0
@@ -19,7 +24,7 @@ export async function sendAlertEmail(incidenceDetails, recipientEmails = []) {
     const mailOptions = {
         from: `"Alerta CIMA Farmacovigilancia" <${process.env.EMAIL_USER}>`,
         to: toEmails,
-        subject: `[CRÍTICO] Lote Afectado en Stock: CN ${cn} Lote ${lote}`,
+        subject: `🚨 ALERTA FARMACOVIGILANCIA: ${tituloAemps}`,
         html: `
             <h2>🚨 ¡Alerta de Farmacovigilancia! 🚨</h2>
             <p>El sistema ha detectado un lote defectuoso de la AEMPS que actualmente se encuentra <b>en stock</b> en el hospital.</p>

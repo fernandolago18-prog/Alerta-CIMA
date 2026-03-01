@@ -12,20 +12,23 @@ function getAiClient() {
 }
 export async function extractBatchesWithGemini(alertText) {
     const prompt = `
-    Eres un asistente experto en farmacovigilancia. Lee el siguiente texto de una alerta de seguridad de la AEMPS (Agencia Española de Medicamentos y Productos Sanitarios).
+    Eres un asistente experto en farmacovigilancia. Lee el siguiente texto extraído de una alerta de seguridad de la AEMPS. El texto puede contener mucho ruido, menús o texto legal, ignóralo.
     
-    Tu única tarea es extraer exactamente todos los medicamentos afectados y listar su Código Nacional (CN) y su Lote afectado.
-    Si el texto menciona múltiples lotes para un mismo CN, o múltiples CNs, extráelos todos en objetos individuales.
+    Tu ÚNICA tarea es buscar todas las menciones a medicamentos afectados y extraer estrictamente su Código Nacional (CN) y su Lote afectado.
+    El Código Nacional (CN) es siempre un número de 6 o 7 dígitos (ej: 658252).
+    El Lote es una cadena alfanumérica.
+    Debes buscar exhaustivamente en todo el texto hasta encontrar la combinación de CN y Lote de los medicamentos retirados o afectados.
+    Si el texto menciona múltiples lotes para un mismo CN, inclúyelos todos como objetos separados.
     
-    El texto es el siguiente:
+    El texto completo es este:
     """
     ${alertText}
     """
     
-    Devuelve estrictamente un array JSON en el que cada elemento sea un objeto con la forma:
-    {"cn": "string con el código nacional de 6 dígitos", "lote": "string con el lote"}
+    Devuelve ESTRICTAMENTE UN ARRAY JSON. Cada elemento debe tener esta estructura exacta:
+    [{"cn": "658252", "lote": "2297801"}, ...]
     
-    No devuelvas NADA más que el array JSON puro (sin bloques de código \`\`\`json ni comentarios). Si no encuentras ningún CN o Lote claro, devuelve [].
+    Si estás absolutamente seguro de que no hay ningún lote ni CN en todo el texto, devuelve []. No añadas explicaciones ni bloques de markdown.
     `;
 
     try {
@@ -58,8 +61,14 @@ export async function extractBatchesWithGemini(alertText) {
             }
         });
 
+        // Debug
+        console.log("Raw Gemini Output:", response.text);
+
         // Parsear la respuesta JSON
-        const rawText = response.text || "[]";
+        let rawText = response.text || "[]";
+
+        // Limpiar posible formato markdown (ej: ```json ... ``` o ```javascript ... ```)
+        rawText = rawText.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
 
         try {
             const data = JSON.parse(rawText);

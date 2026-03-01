@@ -3,11 +3,23 @@ import * as cheerio from 'cheerio';
 
 const AEMPS_URL = "https://www.aemps.gob.es/comunicacion/alertas/medicamentos-uso-humano/?cat=38";
 
-export async function fetchAempsAlerts(ultimaAlertaProcesadaId) {
+export async function fetchAempsAlerts(ultimaAlertaProcesadaId, retries = 3) {
     console.log(`Buscando alertas de AEMPS. Última procesada: ${ultimaAlertaProcesadaId}`);
+
+    let html = null;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const response = await axios.get(AEMPS_URL, { timeout: 10000 });
+            html = response.data;
+            break;
+        } catch (error) {
+            console.error(`Intento ${attempt}/${retries} fallido al conectar con AEMPS: ${error.message}`);
+            if (attempt === retries) throw new Error("Fallo de red al conectar con AEMPS tras varios intentos.");
+            await new Promise(res => setTimeout(res, 2000 * attempt)); // Exponential backoff
+        }
+    }
+
     try {
-        const response = await axios.get(AEMPS_URL);
-        const html = response.data;
         const $ = cheerio.load(html);
 
         const newAlerts = [];
@@ -50,7 +62,14 @@ export async function fetchAempsAlerts(ultimaAlertaProcesadaId) {
                 const detail$ = cheerio.load(detailResponse.data);
 
                 // Todo el contenido del comunicado
-                const fullText = detail$('.entry-content').text().trim() || alert.briefDescription;
+                // Diferentes formatos en AEMPS, intentamos entry-content, luego main, luego el body quitando scripts
+                detail$('script, style, nav, header, footer, noscript, iframe').remove();
+
+                let fullText = detail$('.entry-content').text() || detail$('main').text() || detail$('body').text();
+
+                // Extra clean up to give Gemini clean raw text
+                fullText = fullText.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+                if (!fullText) fullText = alert.briefDescription;
 
                 fullAlerts.push({
                     ...alert,

@@ -12,7 +12,7 @@ def get_supabase_client() -> Client:
     load_dotenv(dotenv_path)
 
     url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
-    key = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
     if not url or not key:
         raise ValueError("Supabase URL and Key must be defined in .env.local")
@@ -52,16 +52,23 @@ def process_and_upload_excel(file_path: str):
         # Rename columns to match DB
         df = df.rename(columns=column_mapping)
         
+        # Clean up NaNs before string casting to prevent creating literal "nan" strings
+        df = df.fillna('')
+
         # Some basic cleanup
         df['cn'] = df['cn'].astype(str).str.strip()
-        df['lote'] = df['lote'].astype(str).str.strip()
+        df['cn'] = df['cn'].replace('nan', '')
         
-        # Convert date column if it exists and to string ISO format
+        df['lote'] = df['lote'].astype(str).str.strip().str.upper().str.replace(' ', '', regex=False).str.replace('-', '', regex=False)
+        df['lote'] = df['lote'].replace('NAN', '')
+        
+        # Convert date column if it exists and to string ISO format safely
         if 'fecha_caducidad' in df.columns:
-            df['fecha_caducidad'] = pd.to_datetime(df['fecha_caducidad']).dt.strftime('%Y-%m-%d')
+            df['fecha_caducidad'] = pd.to_datetime(df['fecha_caducidad'], errors='coerce').dt.strftime('%Y-%m-%d')
             
-        # Convert NaNs to None for Supabase JSON handling
+        # Convert remaining NaNs, NaTs, and empty strings completely to None for Supabase JSON handling
         df = df.where(pd.notna(df), None)
+        df = df.replace({'': None})
         
         records = df.to_dict(orient='records')
         print(f"Extracted {len(records)} local records. Uploading to Supabase...")
