@@ -45,7 +45,7 @@ export default async function AlertasPage() {
                             {alertas?.map((alerta) => (
                                 <tr key={alerta.id} className="hover:bg-white/5 transition-colors">
                                     <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
-                                        {new Date(alerta.fecha_publicacion).toLocaleDateString("es-ES")}
+                                        {new Date(alerta.fecha_publicacion || alerta.created_at).toLocaleDateString("es-ES")}
                                     </td>
                                     <td className="px-6 py-4 font-mono text-xs text-primary/80">
                                         {alerta.alerta_id}
