@@ -32,7 +32,7 @@ export async function fetchAempsAlerts(ultimaAlertaProcesadaId, retries = 3) {
             const link = $(element).attr('href');
             const title = $(element).text().trim();
 
-            if (link && link.includes('informa/notasInformativas') && title.length > 20) {
+            if (link && link.includes('informa/notasInformativas') && !link.includes('info_adicional') && title.length > 20) {
                 const alertaId = link;
 
                 if (alertaId === ultimaAlertaProcesadaId) {
